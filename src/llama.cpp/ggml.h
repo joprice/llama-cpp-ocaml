@@ -219,7 +219,7 @@
 #define GGML_MAX_CONTEXTS      64
 #define GGML_MAX_SRC           6
 #define GGML_MAX_NAME          64
-#define GGML_MAX_OP_PARAMS     32
+#define GGML_MAX_OP_PARAMS     64
 #define GGML_DEFAULT_N_THREADS 4
 
 #if UINTPTR_MAX == 0xFFFFFFFF
@@ -231,8 +231,9 @@
 #define GGML_EXIT_SUCCESS 0
 #define GGML_EXIT_ABORTED 1
 
-#define GGUF_MAGIC   0x46554747 // "GGUF"
-#define GGUF_VERSION 2
+#define GGUF_MAGIC "GGUF"
+
+#define GGUF_VERSION 3
 
 #define GGUF_DEFAULT_ALIGNMENT 32
 
@@ -326,7 +327,7 @@ extern "C" {
         GGML_TYPE_COUNT,
     };
 
-    enum ggml_backend {
+    enum ggml_backend_type {
         GGML_BACKEND_CPU = 0,
         GGML_BACKEND_GPU = 10,
         GGML_BACKEND_GPU_SPLIT = 20,
@@ -400,7 +401,12 @@ extern "C" {
         GGML_OP_ALIBI,
         GGML_OP_CLAMP,
         GGML_OP_CONV_1D,
+        GGML_OP_CONV_1D_STAGE_0,  // internal
+        GGML_OP_CONV_1D_STAGE_1,  // internal
+        GGML_OP_CONV_TRANSPOSE_1D,
         GGML_OP_CONV_2D,
+        GGML_OP_CONV_2D_STAGE_0, // internal
+        GGML_OP_CONV_2D_STAGE_1, // internal
         GGML_OP_CONV_TRANSPOSE_2D,
         GGML_OP_POOL_1D,
         GGML_OP_POOL_2D,
@@ -475,8 +481,10 @@ extern "C" {
 
     // n-dimensional tensor
     struct ggml_tensor {
-        enum ggml_type    type;
-        enum ggml_backend backend;
+        enum ggml_type         type;
+        enum ggml_backend_type backend;
+
+        struct ggml_backend_buffer * buffer;
 
         int     n_dims;
         int64_t ne[GGML_MAX_DIMS]; // number of elements
@@ -510,7 +518,7 @@ extern "C" {
 
         void * extra; // extra things e.g. for ggml-cuda.cu
 
-        char padding[4];
+        char padding[12];
     };
 
     static const size_t GGML_TENSOR_SIZE = sizeof(struct ggml_tensor);
@@ -698,7 +706,10 @@ extern "C" {
     GGML_API struct ggml_tensor * ggml_dup_tensor (struct ggml_context * ctx, const struct ggml_tensor * src);
     GGML_API struct ggml_tensor * ggml_view_tensor(struct ggml_context * ctx, struct ggml_tensor * src);
 
-    GGML_API struct ggml_tensor * ggml_get_tensor(struct ggml_context * ctx, const char * name);
+    // Context tensor enumeration and lookup
+    GGML_API struct ggml_tensor * ggml_get_first_tensor(struct ggml_context * ctx);
+    GGML_API struct ggml_tensor * ggml_get_next_tensor (struct ggml_context * ctx, struct ggml_tensor * tensor);
+    GGML_API struct ggml_tensor * ggml_get_tensor      (struct ggml_context * ctx, const char * name);
 
     GGML_API struct ggml_tensor * ggml_set_zero(struct ggml_tensor * tensor);
     GGML_API struct ggml_tensor * ggml_set_i32 (struct ggml_tensor * tensor, int32_t value);
@@ -1010,9 +1021,9 @@ extern "C" {
             struct ggml_tensor  * b,
             float                 eps);
 
-    // A: n columns, m rows
-    // B: n columns, p rows  (i.e. we transpose it internally)
-    // result is m columns, p rows
+    // A: k columns, n rows => [ne03, ne02, n, k]
+    // B: k columns, m rows  (i.e. we transpose it internally) => [ne03 * x, ne02 * y, m, k]
+    // result is n columns, m rows => [ne03 * x, ne02 * y, m, n]
     GGML_API struct ggml_tensor * ggml_mul_mat(
             struct ggml_context * ctx,
             struct ggml_tensor  * a,
@@ -1315,8 +1326,13 @@ extern "C" {
             int                   n_dims,
             int                   mode,
             int                   n_ctx,
+            int                   n_orig_ctx,
             float                 freq_base,
-            float                 freq_scale);
+            float                 freq_scale,
+            float                 ext_factor,
+            float                 attn_factor,
+            float                 beta_fast,
+            float                 beta_slow);
 
     // in-place, returns view(a)
     GGML_API struct ggml_tensor * ggml_rope_custom_inplace(
@@ -1326,8 +1342,17 @@ extern "C" {
             int                   n_dims,
             int                   mode,
             int                   n_ctx,
+            int                   n_orig_ctx,
             float                 freq_base,
-            float                 freq_scale);
+            float                 freq_scale,
+            float                 ext_factor,
+            float                 attn_factor,
+            float                 beta_fast,
+            float                 beta_slow);
+
+    // compute correction dims for YaRN RoPE scaling
+    void ggml_rope_yarn_corr_dims(
+        int n_dims, int n_orig_ctx, float freq_base, float beta_fast, float beta_slow, float dims[2]);
 
     // xPos RoPE, in-place, returns view(a)
     GGML_API struct ggml_tensor * ggml_rope_xpos_inplace(
@@ -1347,14 +1372,19 @@ extern "C" {
             int                   n_dims,
             int                   mode,
             int                   n_ctx,
+            int                   n_orig_ctx,
             float                 freq_base,
             float                 freq_scale,
+            float                 ext_factor,
+            float                 attn_factor,
+            float                 beta_fast,
+            float                 beta_slow,
             float                 xpos_base,
             bool                  xpos_down);
 
     // alibi position embedding
     // in-place, returns view(a)
-    struct ggml_tensor * ggml_alibi(
+    GGML_API struct ggml_tensor * ggml_alibi(
             struct ggml_context * ctx,
             struct ggml_tensor  * a,
             int                   n_past,
@@ -1363,7 +1393,7 @@ extern "C" {
 
     // clamp
     // in-place, returns view(a)
-    struct ggml_tensor * ggml_clamp(
+    GGML_API struct ggml_tensor * ggml_clamp(
             struct ggml_context * ctx,
             struct ggml_tensor  * a,
             float                 min,
@@ -1385,6 +1415,14 @@ extern "C" {
             struct ggml_tensor  * b,
             int                   s,
             int                   d);
+
+    GGML_API struct ggml_tensor * ggml_conv_transpose_1d(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * a,
+            struct ggml_tensor  * b,
+            int                   s0,
+            int                   p0,
+            int                   d0);
 
     GGML_API struct ggml_tensor * ggml_conv_2d(
             struct ggml_context * ctx,
@@ -1759,6 +1797,7 @@ extern "C" {
         GGML_OPT_NO_CONTEXT,
         GGML_OPT_INVALID_WOLFE,
         GGML_OPT_FAIL,
+        GGML_OPT_CANCEL,
 
         GGML_LINESEARCH_FAIL = -128,
         GGML_LINESEARCH_MINIMUM_STEP,
@@ -1910,11 +1949,18 @@ extern "C" {
     // quantization
     //
 
+    // TODO: these would probably get removed in favor of the more general ggml_quantize_chunk
     GGML_API size_t ggml_quantize_q4_0(const float * src, void * dst, int n, int k, int64_t * hist);
     GGML_API size_t ggml_quantize_q4_1(const float * src, void * dst, int n, int k, int64_t * hist);
     GGML_API size_t ggml_quantize_q5_0(const float * src, void * dst, int n, int k, int64_t * hist);
     GGML_API size_t ggml_quantize_q5_1(const float * src, void * dst, int n, int k, int64_t * hist);
     GGML_API size_t ggml_quantize_q8_0(const float * src, void * dst, int n, int k, int64_t * hist);
+
+    GGML_API size_t ggml_quantize_q2_K(const float * src, void * dst, int n, int k, int64_t * hist);
+    GGML_API size_t ggml_quantize_q3_K(const float * src, void * dst, int n, int k, int64_t * hist);
+    GGML_API size_t ggml_quantize_q4_K(const float * src, void * dst, int n, int k, int64_t * hist);
+    GGML_API size_t ggml_quantize_q5_K(const float * src, void * dst, int n, int k, int64_t * hist);
+    GGML_API size_t ggml_quantize_q6_K(const float * src, void * dst, int n, int k, int64_t * hist);
 
     GGML_API size_t ggml_quantize_chunk(enum ggml_type type, const float * src, void * dst, int start, int n, int64_t * hist);
 
@@ -2089,7 +2135,7 @@ extern "C" {
         enum ggml_type    vec_dot_type;
     } ggml_type_traits_t;
 
-    ggml_type_traits_t ggml_internal_get_type_traits(enum ggml_type type);
+    GGML_API ggml_type_traits_t ggml_internal_get_type_traits(enum ggml_type type);
 
 #ifdef  __cplusplus
 }

@@ -573,7 +573,7 @@ let model_apply_lora_from_file model ~path_lora ~scale ~path_base_model ~n_threa
   let retcode = Stubs.model_apply_lora_from_file model path_lora scale path_base_model n_threads in
   retcode = 0
 
-let kv_cache_tokens_rm context ~c0 ~c1 = Stubs.kv_cache_tokens_rm context c0 c1
+let kv_cache_clear context = Stubs.kv_cache_clear context
 
 let kv_cache_seq_rm context seq_id ~p0 ~p1 = Stubs.kv_cache_seq_rm context seq_id p0 p1
 
@@ -640,13 +640,13 @@ let batch_get_one (tokens : token_buff) ~pos ~seq_id =
   let buff_len = Array1.dim tokens in
   Stubs.batch_get_one token_buff_ptr (Int32.of_int buff_len) pos seq_id
 
-let batch_init ~n_tokens ~embd =
-  Stubs.batch_init (Int32.of_int n_tokens) (Int32.of_int embd)
+let batch_init ~n_tokens ~embd ~n_seq_max =
+  Stubs.batch_init (Int32.of_int n_tokens) (Int32.of_int embd) (Int32.of_int n_seq_max)
 
 let batch_free = Stubs.batch_free
 
-let with_batch ~n_tokens ~embd f =
-  let batch = batch_init ~n_tokens ~embd in
+let with_batch ~n_tokens ~embd ~n_seq_max f =
+  let batch = batch_init ~n_tokens ~embd ~n_seq_max in
   let res = f batch in
   batch_free batch ;
   res
@@ -703,8 +703,8 @@ let get_embeddings context =
   let n_embd = n_embd (get_model context) in
   Ctypes.bigarray_of_ptr array1 n_embd Float32 ptr
 
-let token_get_text context token =
-  let ptr = Stubs.token_get_text context token in
+let token_get_text model token =
+  let ptr = Stubs.token_get_text model token in
   assert (not (is_null ptr)) ;
   let length = Stubs.strlen ptr |> Unsigned.Size_t.to_int in
   Ctypes.string_from_ptr ptr ~length
@@ -720,14 +720,14 @@ let token_eos = Stubs.token_eos
 let token_nl = Stubs.token_nl
 
 (* We could provide a bigarray-buffer API in order to tokenize slices of text *)
-let tokenize model ~text tokens ~n_max_tokens ~add_bos =
+let tokenize model ~text tokens ~n_max_tokens ~add_bos ~special =
   if n_max_tokens <= 0 then
     invalid_arg "tokenize (n_max_tokens <= 0)" ;
   let text_len = String.length text in
   let text = Array1.init Char c_layout text_len (fun i -> text.[i]) in
   let text = Ctypes.bigarray_start Ctypes.array1 text in
   let tokens = Ctypes.bigarray_start Ctypes.array1 tokens in
-  let written = Stubs.tokenize model text text_len tokens n_max_tokens add_bos in
+  let written = Stubs.tokenize model text text_len tokens n_max_tokens add_bos special in
   if written < 0 then
     Error (`Too_many_tokens written)
   else
@@ -777,13 +777,9 @@ let grammar_copy grammar =
   Gc.finalise Stubs.grammar_free grammar ;
   grammar
 
-let sample_repetition_penalty context ~candidates ~last_tokens ~penalty =
+let sample_repetition_penalties context ~candidates ~last_tokens ~penalty_repeat ~penalty_freq ~penalty_present =
   let dim = Array1.dim last_tokens |> Unsigned.Size_t.of_int in
-  Stubs.sample_repetition_penalty context candidates (Ctypes.bigarray_start array1 last_tokens) dim penalty
-
-let sample_frequency_and_presence_penalties context ~candidates ~last_tokens ~alpha_frequency ~alpha_presence =
-  let dim = Array1.dim last_tokens |> Unsigned.Size_t.of_int in
-  Stubs.sample_frequency_and_presence_penalties context candidates (Ctypes.bigarray_start array1 last_tokens) dim alpha_frequency alpha_presence
+  Stubs.sample_repetition_penalties context candidates (Ctypes.bigarray_start array1 last_tokens) dim penalty_repeat penalty_freq penalty_present
 
 let sample_classifier_free_guidance context ~candidates ~guidance_ctx ~scale =
   Stubs.sample_classifier_free_guidance context candidates guidance_ctx scale

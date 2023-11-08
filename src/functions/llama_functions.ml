@@ -95,8 +95,8 @@ module Make = functor (T : Ctypes.FOREIGN) -> struct
   (* let get_kv_cache_token_count = *)
   (*   foreign "llama_get_kv_cache_token_count" (ptr Context.repr @-> returning int) *)
 
-  let kv_cache_tokens_rm =
-    foreign "llama_kv_cache_tokens_rm" (ptr Context.repr @-> int32_t @-> int32_t @-> returning void)
+  let kv_cache_clear =
+    foreign "llama_kv_cache_clear" (ptr Context.repr @-> returning void)
 
   let kv_cache_seq_rm =
     foreign "llama_kv_cache_seq_rm" (ptr Context.repr @-> Seq_id.repr @-> int32_t @-> int32_t @-> returning void)
@@ -161,7 +161,7 @@ module Make = functor (T : Ctypes.FOREIGN) -> struct
     foreign "llama_batch_get_one" (ptr Token.repr @-> int32_t @-> Pos.repr @-> Seq_id.repr @-> returning Batch.repr)
 
   let batch_init =
-    foreign "llama_batch_init" (int32_t @-> int32_t @-> returning Batch.repr)
+    foreign "llama_batch_init" (int32_t @-> int32_t @-> int32_t @-> returning Batch.repr)
 
   let batch_free =
     foreign "llama_batch_free" (Batch.repr @-> returning void)
@@ -189,25 +189,25 @@ module Make = functor (T : Ctypes.FOREIGN) -> struct
   (* Vocab *)
 
   let token_get_text =
-    foreign "llama_token_get_text" (ptr Context.repr @-> Token.repr @-> returning (ptr char))
+    foreign "llama_token_get_text" (ptr Model.repr @-> Token.repr @-> returning (ptr char))
 
   let token_get_score =
-    foreign "llama_token_get_score" (ptr Context.repr @-> Token.repr @-> returning float)
+    foreign "llama_token_get_score" (ptr Model.repr @-> Token.repr @-> returning float)
 
   let token_get_type =
-    foreign "llama_token_get_type" (ptr Context.repr @-> Token.repr @-> returning Token_type.repr)
+    foreign "llama_token_get_type" (ptr Model.repr @-> Token.repr @-> returning Token_type.repr)
 
   (* beginning-of-sentence *)
   let token_bos =
-    foreign "llama_token_bos" (ptr Context.repr @-> returning Token.repr)
+    foreign "llama_token_bos" (ptr Model.repr @-> returning Token.repr)
 
   (* end-of-sentence *)
   let token_eos =
-    foreign "llama_token_eos" (ptr Context.repr @-> returning Token.repr)
+    foreign "llama_token_eos" (ptr Model.repr @-> returning Token.repr)
 
   (* next-line *)
   let token_nl =
-    foreign "llama_token_nl" (ptr Context.repr @-> returning Token.repr)
+    foreign "llama_token_nl" (ptr Model.repr @-> returning Token.repr)
 
   (* Tokenization *)
 
@@ -216,7 +216,7 @@ module Make = functor (T : Ctypes.FOREIGN) -> struct
   (* Returns the number of tokens on success, no more than n_max_tokens *)
   (* Returns a negative number on failure - the number of tokens that would have been returned *)
   let tokenize =
-    foreign "llama_tokenize" (ptr Model.repr @-> ptr char @-> int @-> ptr Token.repr @-> int @-> bool @-> returning int)
+    foreign "llama_tokenize" (ptr Model.repr @-> ptr char @-> int @-> ptr Token.repr @-> int @-> bool @-> bool @-> returning int)
 
   (* Token Id -> Piece. *)
   (* Uses the vocabulary in the provided context. *)
@@ -244,14 +244,9 @@ module Make = functor (T : Ctypes.FOREIGN) -> struct
     foreign "llama_set_rng_seed" (ptr Context.repr @-> uint32_t @-> returning void)
 
   (* Repetition penalty described in CTRL academic paper https://arxiv.org/abs/1909.05858, with negative logit fix. *)
-  let sample_repetition_penalty =
-    foreign "llama_sample_repetition_penalty"
-      (ptr Context.repr @-> ptr Token_data_array.repr @-> ptr Token.repr @-> size_t @-> float @-> returning void)
-
-  (* Frequency and presence penalties described in OpenAI API https://platform.openai.com/docs/api-reference/parameter-details. *)
-  let sample_frequency_and_presence_penalties =
-    foreign "llama_sample_frequency_and_presence_penalties"
-      (ptr Context.repr @-> ptr Token_data_array.repr @-> ptr Token.repr @-> size_t @-> float @-> float @-> returning void)
+  let sample_repetition_penalties =
+    foreign "llama_sample_repetition_penalties"
+      (ptr Context.repr @-> ptr Token_data_array.repr @-> ptr Token.repr @-> size_t @-> float @-> float @-> float @-> returning void)
 
      (* @details Apply classifier-free guidance to the logits as described in academic paper "Stay on topic with Classifier-Free Guidance" https://arxiv.org/abs/2306.17806 *)
      (* @param candidates A vector of `llama_token_data` containing the candidate tokens, the logits must be directly extracted from the original generation context without being sorted. *)

@@ -59,7 +59,7 @@
         (with-stdin-from
          produce-static-archive.patch
          (run patch -d llama.cpp -p1))
-        (run make -C llama.cpp libllama.so libllama.a)
+        (run make LLAMA_NO_METAL=1 -C llama.cpp libllama.so libllama.a)
         (copy llama.cpp/libllama.a libllama_bindings.a)
         (copy llama.cpp/libllama.so dllllama_bindings.so)))))
 

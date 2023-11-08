@@ -31,7 +31,7 @@ let main model prompt =
   in
   let tokens_list = Array1.create Int32 c_layout n_max_tokens in
   let tokens_list =
-    match Llama_cpp.tokenize model ~text:prompt tokens_list ~n_max_tokens ~add_bos:true with
+    match Llama_cpp.tokenize model ~text:prompt tokens_list ~n_max_tokens ~add_bos:true ~special:false with
     | Error (`Too_many_tokens count) ->
       Printf.eprintf "%s: error: too many tokens (got %d, expected <= %d)" __FUNCTION__ count n_max_tokens ;
       exit 1
@@ -59,7 +59,7 @@ let main model prompt =
 
   (* Create a llama_batch with size 512 *)
   (* we use this object to submit token data for decoding *)
-  Llama_cpp.with_batch ~n_tokens:512 ~embd:0 @@ fun batch ->
+  Llama_cpp.with_batch ~n_tokens:512 ~embd:0 ~n_seq_max:1 @@ fun batch ->
   Llama_cpp.Batch.set_n_tokens batch (Array1.dim tokens_list) ;
   let Llama_cpp.Batch.{ n_tokens; token; pos; seq_id; logits = compute_logits; embd = _ } = Llama_cpp.Batch.view batch in
 
@@ -98,7 +98,7 @@ let main model prompt =
         let candidates = Llama_cpp.Token_data_array.create logits in
         let new_token_id = Llama_cpp.sample_token_greedy ctx ~candidates in
         (* is it an end of stream ? *)
-        if new_token_id = Llama_cpp.token_eos ctx then
+        if new_token_id = Llama_cpp.token_eos model then
           Printf.eprintf "[end of text]\n%!"
         else
           (

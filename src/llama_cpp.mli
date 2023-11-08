@@ -395,7 +395,7 @@ val model_apply_lora_from_file : model -> path_lora:string -> scale:float -> pat
 (** KV Cache *)
 
 (** Remove all tokens data of cells in [\[c0, c1)] *)
-val kv_cache_tokens_rm : context -> c0:int32 -> c1:int32 -> unit
+val kv_cache_clear : context -> unit
 
 (** Removes all tokens that belong to the specified sequence and have positions in [\[p0, p1)] *)
 val kv_cache_seq_rm : context -> seq_id -> p0:pos -> p1:pos -> unit
@@ -453,12 +453,12 @@ val batch_get_one : Token_buffer.t -> pos:pos -> seq_id:seq_id -> Batch.t
     Otherwise, [Batch.token batch] will be allocated to store [n_tokens] [token].
     The rest of the [batch] members are allocated with size [n_tokens].
     All members are left uninitialized, including the field [Batch.n_tokens]. *)
-val batch_init : n_tokens:int -> embd:int -> Batch.t
+val batch_init : n_tokens:int -> embd:int -> n_seq_max:int -> Batch.t
 
 val batch_free : Batch.t -> unit
 
 (** [with_batch ~n_tokens ~embd f] allocates a batch, calls [f] on it then frees the batch before returning. As a consequence, the lifetime of the batch should not escape [f]. *)
-val with_batch : n_tokens:int -> embd:int -> (Batch.t -> 'a) -> 'a
+val with_batch : n_tokens:int -> embd:int -> n_seq_max:int -> (Batch.t -> 'a) -> 'a
 
 (** [decode context batch] performs inference on the given [batch]. It returns [Ok logits] in case of success.
     - If [Error `no_kv_slot_for_batch] is returned, try reducing the size of the batch or increase the context.
@@ -497,22 +497,22 @@ val get_embeddings : context -> embeddings
 
 (** Vocab *)
 
-val token_get_text : context -> token -> string
+val token_get_text : model -> token -> string
 
-val token_get_score : context -> token -> float
+val token_get_score : model -> token -> float
 
-val token_get_type : context -> token -> token_type
+val token_get_type : model -> token -> token_type
 
 (** Special tokens *)
 
 (** beginning-of-sentence *)
-val token_bos : context -> token
+val token_bos : model -> token
 
 (** end-of-sentence *)
-val token_eos : context -> token
+val token_eos : model -> token
 
 (** next-line *)
-val token_nl : context -> token
+val token_nl : model -> token
 
 (** Tokenization *)
 
@@ -520,7 +520,7 @@ val token_nl : context -> token
     The tokens buffer must be large enough to hold the resulting tokens.
     Returns the number of written tokens on success, no more than n_max_tokens
     Returns [Error (`Too_many_tokens n)] on failure - the number of tokens that would have been returned *)
-val tokenize : model -> text:string -> Token_buffer.t -> n_max_tokens:int -> add_bos:bool -> (int, [`Too_many_tokens of int]) result
+val tokenize : model -> text:string -> Token_buffer.t -> n_max_tokens:int -> add_bos:bool -> special:bool -> (int, [`Too_many_tokens of int]) result
 
 (** Token Id -> Piece.
     Uses the vocabulary in the provided context.
@@ -542,10 +542,7 @@ val grammar_from_bnf : BNF.t -> grammar
 val set_rng_seed : context -> int -> unit
 
 (** Repetition penalty described in CTRL academic paper https://arxiv.org/abs/1909.05858, with negative logit fix. *)
-val sample_repetition_penalty : context -> candidates:Token_data_array.t -> last_tokens:Token_buffer.t -> penalty:float -> unit
-
-(** Frequency and presence penalties described in OpenAI API https://platform.openai.com/docs/api-reference/parameter-details. *)
-val sample_frequency_and_presence_penalties : context -> candidates:Token_data_array.t -> last_tokens:Token_buffer.t -> alpha_frequency:float ->  alpha_presence:float -> unit
+val sample_repetition_penalties : context -> candidates:Token_data_array.t -> last_tokens:Token_buffer.t -> penalty_repeat:float -> penalty_freq:float -> penalty_present:float -> unit
 
 (** Apply classifier-free guidance to the logits as described in academic paper "Stay on topic with Classifier-Free Guidance" https://arxiv.org/abs/2306.17806
     @param candidates A vector of `llama_token_data` containing the candidate tokens, the logits must be directly extracted from the original generation context without being sorted.

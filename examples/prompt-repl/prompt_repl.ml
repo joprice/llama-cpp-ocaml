@@ -64,10 +64,10 @@ module Interpreter = struct
   (* Tokenize prompt *)
   let tokenize ~add_bos ctx text =
     let tokens_buff = Token_buffer.init 1024 (Fun.const Llama_cpp.zero_token) in
-    match Llama_cpp.tokenize ctx ~text tokens_buff ~n_max_tokens:1024 ~add_bos with
+    match Llama_cpp.tokenize ctx ~text tokens_buff ~n_max_tokens:1024 ~add_bos ~special:false with
     | Error (`Too_many_tokens count) ->
       let tokens_buff = Token_buffer.init count (Fun.const Llama_cpp.zero_token) in
-      (match Llama_cpp.tokenize ctx ~text tokens_buff ~n_max_tokens:count ~add_bos:true with
+      (match Llama_cpp.tokenize ctx ~text tokens_buff ~n_max_tokens:count ~add_bos:true ~special:false with
       | Error _ -> failwith "tokenize"
       | Ok written ->
         assert (written = count) ;
@@ -179,7 +179,7 @@ module Interpreter = struct
     let ctx = state.ctx in
     let model = Llama_cpp.get_model ctx in
     let tokens = tokenize ~add_bos model prompt in
-    let batch = Llama_cpp.batch_init ~n_tokens:512 ~embd:0 in
+    let batch = Llama_cpp.batch_init ~n_tokens:512 ~embd:0 ~n_seq_max:1 in
     (* Llama_cpp.with_batch ~n_tokens:512 ~embd:0 @@ fun batch -> *)
     (* Perform inference on prompt if non-empty *)
     let state =
@@ -193,7 +193,8 @@ module Interpreter = struct
     let candidates = Llama_cpp.Token_data_array.create logits in
     let rec loop state () =
       let last_tokens = Token_buffer.of_list (List.rev state.last_tokens) in
-      Llama_cpp.sample_repetition_penalty ctx ~candidates ~last_tokens ~penalty:1.1 ;
+      Llama_cpp.sample_repetition_penalties ctx ~candidates ~last_tokens ~penalty_repeat:1.1 ~penalty_freq:1.1 ~penalty_present:1.1 
+      ;
       Option.iter (fun grammar -> Llama_cpp.sample_grammar ctx ~candidates grammar) state.grammar ;
       let new_token_id = Llama_cpp.sample_token_greedy ctx ~candidates in
       Option.iter (fun grammar ->
@@ -201,7 +202,7 @@ module Interpreter = struct
         ) state.grammar ;
       let last_tokens = new_token_id :: state.last_tokens in
       let state = { state with last_tokens } in
-      if Int32.equal new_token_id (Llama_cpp.token_eos state.ctx) then
+      if Int32.equal new_token_id (Llama_cpp.token_eos model) then
         ( Llama_cpp.batch_free batch ;
           let next_element = (new_token_id, state) in
           Seq.Cons (next_element, Seq.empty) )
