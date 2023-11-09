@@ -102,7 +102,7 @@ let sample_batch ctx n_batch n_past tokens batch =
       for i = 0 to batch_size - 1 do
         token.{i} <- tokens.{start_idx + i} ;
         pos.{i} <- Int32.of_int (n_past + i) ;
-        seq_id.{i} <- 0l ;
+        seq_id.{i, 0} <- 0l ;
         logits.{i} <- 0
       done ;
       logits.{batch_size - 1} <- 1

@@ -95,8 +95,9 @@ sig
     n_tokens : int ;
     token : Token_buffer.t ; (** [token] contains tokens to be decoded. *)
     embd : embeddings option ; (** [embd] contains the embedded tokens to be decoded. Cannot be used if [token] is nonempty. *)
+    n_seq_id: (pos, int32_elt, c_layout) Array1.t ;
     pos : (pos, int32_elt, c_layout) Array1.t ; (** [pos.{i}] indicates a position into the kv cache, previous positions contain the context to be used for decoding [token.{i}]. *)
-    seq_id : (seq_id, int32_elt, c_layout) Array1.t ; (** [seq_id.{i}] is a name for the context to be used in order to decode [token.{i}]. *)
+    seq_id : (seq_id, int32_elt, c_layout) Array2.t ; (** [seq_id.{i}] is a name for the context to be used in order to decode [token.{i}]. *)
     logits : (int, int8_signed_elt, c_layout) Array1.t (** [logits] is an array of byte-encoded booleans. Set [logits.{i}] to [true] if the logit for [token.{i}] must be computed. *)
   }
 
@@ -113,7 +114,7 @@ sig
   val pos : t -> (pos, int32_elt, c_layout) Array1.t
 
   (** [seq_id batch] is a name for the context associated to each token to be processed. *)
-  val seq_id : t -> (seq_id, int32_elt, c_layout) Array1.t
+  val seq_id : t -> (seq_id, int32_elt, c_layout) Array2.t
 
   (** [logits batch] is a vector of byte-encoded booleans, indicating if the logits for each input token
       should be computed or not. *)

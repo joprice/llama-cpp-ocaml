@@ -62,6 +62,7 @@ struct
         let token = field repr "token" (ptr Token.repr)
         let embd = field repr "embd" (ptr float)
         let pos = field repr "pos" (ptr Pos.repr)
+        let n_seq_id = field repr "n_seq_id" (ptr int32_t)
         let seq_id = field repr "seq_id" (ptr Seq_id.repr)
         let logits = field repr "logits" (ptr int8_t)
         let all_pos_0 = field repr "all_pos_0" Pos.repr

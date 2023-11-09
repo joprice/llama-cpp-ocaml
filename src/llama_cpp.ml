@@ -104,12 +104,14 @@ struct
     n_tokens : int ;
     token : Token_buffer.t ;
     embd : embeddings option ;
+    n_seq_id: (pos, int32_elt, c_layout) Array1.t ;
     pos : (pos, int32_elt, c_layout) Array1.t ;
-    seq_id : (seq_id, int32_elt, c_layout) Array1.t ;
+    seq_id : (seq_id, int32_elt, c_layout) Array2.t ;
     logits : (int, int8_signed_elt, c_layout) Array1.t
   }
 
   let n_tokens batch = Int32.to_int (getf batch Types.Batch.Fields.n_tokens)
+  (* let n_seq_id batch = (getf batch Types.Batch.Fields.n_seq_id) *)
 
   let token batch =
     let n_tokens = n_tokens batch in
@@ -125,17 +127,27 @@ struct
     else
       Some (bigarray_of_ptr array1 n_tokens Float32 embd_ptr)
 
+  let n_seq_id batch =
+    let n_tokens = n_tokens batch in
+    let pos_ptr = getf batch Types.Batch.Fields.n_seq_id in
+    assert (not (is_null pos_ptr)) ;
+    bigarray_of_ptr array1 n_tokens Int32 pos_ptr
+
   let pos batch =
     let n_tokens = n_tokens batch in
     let pos_ptr = getf batch Types.Batch.Fields.pos in
     assert (not (is_null pos_ptr)) ;
     bigarray_of_ptr array1 n_tokens Int32 pos_ptr
 
-  let seq_id batch =
+let seq_id batch =
     let n_tokens = n_tokens batch in
+    (* let n_seq_ids = n_seq_id batch in *)
+    (* let n_seq_id = n_seq_ids.{n_tokens - 1} |> Int32.to_int in *)
+    (* Format.printf "\nn_tokens: %d n_seq_ids dim: %d n_seq_id: %d\n" n_tokens (Bigarray.Array1.dim n_seq_ids) n_seq_id; *)
     let seq_id_ptr = getf batch Types.Batch.Fields.seq_id in
+    let n_seq_max = 1 in
     assert (not (is_null seq_id_ptr)) ;
-    bigarray_of_ptr array1 n_tokens Int32 seq_id_ptr
+    bigarray_of_ptr array2 (n_tokens, n_seq_max) Int32 seq_id_ptr
 
   let logits batch =
     let n_tokens = n_tokens batch in
@@ -147,6 +159,7 @@ struct
     n_tokens = n_tokens batch ;
     token = token batch ;
     embd = embd batch ;
+    n_seq_id = n_seq_id batch;
     pos = pos batch ;
     seq_id = seq_id batch ;
     logits = logits batch

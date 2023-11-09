@@ -61,13 +61,14 @@ let main model prompt =
   (* we use this object to submit token data for decoding *)
   Llama_cpp.with_batch ~n_tokens:512 ~embd:0 ~n_seq_max:1 @@ fun batch ->
   Llama_cpp.Batch.set_n_tokens batch (Array1.dim tokens_list) ;
-  let Llama_cpp.Batch.{ n_tokens; token; pos; seq_id; logits = compute_logits; embd = _ } = Llama_cpp.Batch.view batch in
+  let Llama_cpp.Batch.{ n_tokens; token; n_seq_id; pos; seq_id; logits = compute_logits; embd = _ } = Llama_cpp.Batch.view batch in
 
   (* evaluate the initial prompt *)
   for i = 0 to n_tokens - 1 do
     token.{i} <- tokens_list.{i} ;
     pos.{i} <- Int32.of_int i ;
-    seq_id.{i} <- 0l ;
+    n_seq_id.{i} <- Int32.of_int 1;
+    seq_id.{i, 0} <- 0l ;
     compute_logits.{i} <- 0 (* false *)
   done ;
 
@@ -112,8 +113,9 @@ let main model prompt =
             (* prepare the next batch *)
             Llama_cpp.Batch.set_n_tokens batch 0 ;
             token.{0} <- new_token_id ;
+            n_seq_id.{0} <- Int32.of_int 1;
             pos.{0} <- Int32.of_int n_cur ;
-            seq_id.{0} <- 0l ;
+            seq_id.{0, 0} <- 0l ;
             compute_logits.{0} <- 1 ; (* true *)
             Llama_cpp.Batch.set_n_tokens batch 1 ;
             let n_decode = n_decode + 1 in
