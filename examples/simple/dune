@@ -1,4 +1,3 @@
 (executable
-   (name simple)
-   (libraries llama_cpp)
-)
+ (name simple)
+ (libraries llama_cpp))

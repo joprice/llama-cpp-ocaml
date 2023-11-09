@@ -63,7 +63,7 @@ struct
         let embd = field repr "embd" (ptr float)
         let pos = field repr "pos" (ptr Pos.repr)
         let n_seq_id = field repr "n_seq_id" (ptr int32_t)
-        let seq_id = field repr "seq_id" (ptr Seq_id.repr)
+        let seq_id = field repr "seq_id" (ptr (ptr Seq_id.repr))
         let logits = field repr "logits" (ptr int8_t)
         let all_pos_0 = field repr "all_pos_0" Pos.repr
         let all_pos_1 = field repr "all_pos_1" Pos.repr
@@ -107,9 +107,16 @@ struct
       let n_batch = field repr "n_batch" uint32_t
       let n_threads = field repr "n_threads" uint32_t
       let n_threads_batch = field repr "n_threads_batch" uint32_t
+      let rope_scaling_type = field repr "rope_scaling_type" int8_t
 
       let rope_freq_base = field repr "rope_freq_base" float
       let rope_freq_scale = field repr "rope_freq_scale" float
+
+      let yarn_ext_factor = field repr "yarn_ext_factor" float
+      let yarn_attn_factor = field repr "yarn_attn_factor" float
+      let yarn_beta_fast = field repr "yarn_beta_fast" float
+      let yarn_beta_slow = field repr "yarn_beta_slow" float
+      let yarn_orig_ctx = field repr "yarn_orig_ctx" uint32_t
 
       let mul_mat_q = field repr "mul_mat_q" bool
       let f16_kv = field repr "f16_kv" bool
@@ -273,6 +280,8 @@ struct
       let quantize_output_tensor = field repr "quantize_output_tensor" bool
 
       let only_copy = field repr "only_copy" bool
+      
+      let pure = field repr "pure" bool
 
       let () = seal repr
     end
