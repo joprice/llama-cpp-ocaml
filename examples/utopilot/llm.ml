@@ -103,6 +103,7 @@ let sample_batch ctx n_batch n_past tokens batch =
         token.{i} <- tokens.{start_idx + i} ;
         pos.{i} <- Int32.of_int (n_past + i) ;
         Llama_cpp.Batch.set_seq_id ~n_seq_max:1 batch i 0 0l;
+        n_seq_id.{i} <- Int32.of_int 1;
         logits.{i} <- 0
       done ;
       logits.{batch_size - 1} <- 1

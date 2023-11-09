@@ -135,10 +135,11 @@ module Interpreter = struct
       (* Initialize batch *)
       Llama_cpp.Batch.(
         set_n_tokens batch batch_size ;
-        let { token; pos; logits; _ } = view batch in
+        let { token; pos; n_seq_id; logits; _ } = view batch in
         for i = 0 to batch_size - 1 do
           token.{i} <- tokens.{start_idx + i} ;
           pos.{i} <- Int32.of_int (n_past + i) ;
+          n_seq_id.{i} <- Int32.of_int 1;
           Llama_cpp.Batch.set_seq_id ~n_seq_max:1 batch i 0 0l;
           logits.{i} <- 0
         done ;
