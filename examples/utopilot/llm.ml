@@ -98,7 +98,7 @@ let sample_batch ctx n_batch n_past tokens batch =
     (* Initialize batch *)
     Llama_cpp.Batch.(
       set_n_tokens batch batch_size ;
-      let { token; pos; logits; _ } = view batch in
+      let { token; pos; logits; n_seq_id; _ } = view batch in
       for i = 0 to batch_size - 1 do
         token.{i} <- tokens.{start_idx + i} ;
         pos.{i} <- Int32.of_int (n_past + i) ;
